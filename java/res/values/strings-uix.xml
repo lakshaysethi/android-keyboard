@@ -95,6 +95,13 @@
     <string name="action_clipboard_manager_settings_show_pinned_above_others">Keep pinned clips on top</string>
     <string name="action_clipboard_manager_settings_show_quick_clips">Show recently copied text in suggestion bar</string>
 
+    <!-- For web search action -->
+    <string name="action_web_search_title">Web Search</string>
+    <string name="action_web_search_search">Search docdocgo…</string>
+    <string name="action_web_search_error">Error: %1$s</string>
+    <string name="action_web_search_no_results">No results found</string>
+    <string name="action_web_search_insert_item">Insert item</string>
+
     <!-- For keyboard modes action -->
     <string name="action_keyboard_modes_title">Keyboard Modes</string>
     <string name="action_keyboard_modes_go_back">Go back</string>

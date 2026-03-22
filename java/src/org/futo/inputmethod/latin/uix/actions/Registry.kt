@@ -29,6 +29,7 @@ val AllActionsMap = mapOf(
     "system_voice_input" to SystemVoiceInputAction,
     "switch_language" to SwitchLanguageAction,
     "clipboard_history" to ClipboardHistoryAction,
+    "web_search" to WebSearchAction,
     "mem_dbg" to MemoryDebugAction,
     "cut" to CutAction,
     "copy" to CopyAction,
@@ -262,7 +263,7 @@ fun String.toActionList(): List<Action> = split(",").mapNotNull { AllActionsMap[
 val DefaultActionSettings = mapOf(
     ActionCategory.ActionKey to listOf(EmojiAction),
     ActionCategory.PinnedKey to listOf(VoiceInputAction),
-    ActionCategory.Favorites to listOf(SwitchLanguageAction, UndoAction, RedoAction, TextEditAction, ClipboardHistoryAction, ThemeAction, KeyboardModeAction),
+    ActionCategory.Favorites to listOf(SwitchLanguageAction, UndoAction, RedoAction, TextEditAction, ClipboardHistoryAction, WebSearchAction, ThemeAction, KeyboardModeAction),
     ActionCategory.More to listOf(), // Remaining actions get populated automatically by ensureWellFormed
     ActionCategory.Disabled to listOf(MemoryDebugAction, SystemVoiceInputAction, BugViewerAction)
 )
