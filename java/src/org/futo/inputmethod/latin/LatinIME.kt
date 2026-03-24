@@ -57,6 +57,8 @@ import kotlinx.coroutines.withContext
 import org.futo.inputmethod.accessibility.AccessibilityUtils
 import org.futo.inputmethod.engine.IMEManager
 import org.futo.inputmethod.engine.general.WordLearner
+import org.futo.inputmethod.latin.Dictionary
+import org.futo.inputmethod.latin.SuggestedWords
 import org.futo.inputmethod.latin.SuggestedWords.SuggestedWordInfo
 import org.futo.inputmethod.latin.common.Constants
 import org.futo.inputmethod.latin.settings.Settings
@@ -73,6 +75,10 @@ import org.futo.inputmethod.latin.uix.SUGGESTION_BLACKLIST
 import org.futo.inputmethod.latin.uix.THEME_KEY
 import org.futo.inputmethod.latin.uix.UixManager
 import org.futo.inputmethod.latin.uix.actions.CanThrowIfDebug
+import org.futo.inputmethod.latin.uix.actions.ClipboardHistoryAction
+import org.futo.inputmethod.latin.uix.actions.ClipboardHistoryEnabled
+import org.futo.inputmethod.latin.uix.actions.ClipboardHistoryManager
+import org.futo.inputmethod.latin.uix.actions.ClipboardSuggestionsEnabled
 import org.futo.inputmethod.latin.uix.createInlineSuggestionsRequest
 import org.futo.inputmethod.latin.uix.dataStore
 import org.futo.inputmethod.latin.uix.differsFrom
@@ -771,11 +777,63 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         rtlSubtype: Boolean,
         useExpandableUi: Boolean
     ) {
-        uixManager.setSuggestions(suggestedWords, rtlSubtype, useExpandableUi)
+        var finalSuggestedWords = suggestedWords
+        val clipboardHistoryManager = uixManager.persistentStates[ClipboardHistoryAction] as? ClipboardHistoryManager
+        if (clipboardHistoryManager != null &&
+            getSettingBlocking(ClipboardHistoryEnabled) &&
+            getSettingBlocking(ClipboardSuggestionsEnabled)) {
+
+            val typedWord = suggestedWords.mTypedWordInfo?.mWord
+            if (!typedWord.isNullOrBlank()) {
+                val matches = clipboardHistoryManager.clipboardHistory.filter {
+                    it.text?.startsWith(typedWord, ignoreCase = true) == true && it.text != typedWord
+                }.reversed().take(3) // Limit to 3 most recent clipboard suggestions
+
+                if (matches.isNotEmpty()) {
+                    val newSuggestions = ArrayList<SuggestedWordInfo>()
+                    // Copy existing suggestions
+                    for (i in 0 until suggestedWords.size()) {
+                        newSuggestions.add(suggestedWords.getInfo(i))
+                    }
+
+                    // Add clipboard matches
+                    for (match in matches) {
+                        val word = match.text ?: continue
+                        // Prevent duplicates
+                        if (newSuggestions.any { it.mWord == word }) continue
+
+                        newSuggestions.add(
+                            SuggestedWordInfo(
+                                word,
+                                "",
+                                SuggestedWordInfo.MAX_SCORE,
+                                SuggestedWordInfo.KIND_CLIPBOARD,
+                                Dictionary.DICTIONARY_USER_TYPED, // Use a neutral source
+                                SuggestedWordInfo.NOT_AN_INDEX,
+                                SuggestedWordInfo.NOT_A_CONFIDENCE
+                            )
+                        )
+                    }
+
+                    finalSuggestedWords = SuggestedWords(
+                        newSuggestions,
+                        suggestedWords.mRawSuggestions,
+                        suggestedWords.mTypedWordInfo,
+                        suggestedWords.mTypedWordValid,
+                        suggestedWords.mWillAutoCorrect,
+                        suggestedWords.mIsObsoleteSuggestions,
+                        suggestedWords.mInputStyle,
+                        suggestedWords.mSequenceNumber
+                    )
+                }
+            }
+        }
+
+        uixManager.setSuggestions(finalSuggestedWords, rtlSubtype, useExpandableUi)
 
         // Cache the auto-correction in accessibility code so we can speak it if the user
         // touches a key that will insert it.
-        AccessibilityUtils.getInstance().setAutoCorrection(suggestedWords)
+        AccessibilityUtils.getInstance().setAutoCorrection(finalSuggestedWords)
     }
 
     override fun onLowMemory() {

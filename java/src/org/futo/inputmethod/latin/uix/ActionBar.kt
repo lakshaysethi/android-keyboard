@@ -339,6 +339,16 @@ fun RowScope.SuggestionItem(words: SuggestedWords, idx: Int, isPrimary: Boolean,
                     .testTag("SuggestionItemText")
                 if(isVerbatim) {
                     AutoFitText('"' + word + '"', style = textStyle.copy(fontStyle = FontStyle.Italic), modifier = modifier)
+                } else if (wordInfo?.kind == SuggestedWordInfo.KIND_CLIPBOARD) {
+                    Row(modifier = modifier, verticalAlignment = CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.clipboard_manager),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                            tint = color
+                        )
+                        AutoFitText(word, style = textStyle, modifier = Modifier.weight(1f))
+                    }
                 } else {
                     AutoFitText(word, style = textStyle, modifier = modifier)
                 }

@@ -552,7 +552,7 @@ class UixManager(private val latinIME: LatinIME) {
     private val useExpandableSuggestionsUi: MutableState<Boolean> = mutableStateOf(false)
 
     var currWindowAction: MutableState<Action?> = mutableStateOf(null)
-    private var persistentStates: HashMap<Action, PersistentActionState?> = hashMapOf()
+    internal var persistentStates: HashMap<Action, PersistentActionState?> = hashMapOf()
 
     private var inlineSuggestions: MutableState<List<MutableState<View?>>> = mutableStateOf(emptyList())
     private val keyboardManagerForAction = UixActionKeyboardManager(this, latinIME)

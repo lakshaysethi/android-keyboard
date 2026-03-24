@@ -127,6 +127,11 @@ val ClipboardQuickClipsEnabled = SettingsKey(
     true
 )
 
+val ClipboardSuggestionsEnabled = SettingsKey(
+    booleanPreferencesKey("clipboard_suggestions_enabled"),
+    true
+)
+
 
 object UriSerializer : KSerializer<Uri> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Uri", PrimitiveKind.STRING)
@@ -556,9 +561,8 @@ ${if(clipboardFileSwap.exists()) { clipboardFileSwap.readText() } else { "File d
     }
 
     fun onPaste(item: ClipboardEntry) {
-        val itemPos = clipboardHistory.indexOf(item).coerceAtLeast(0)
         clipboardHistory.removeAll { it == item }
-        clipboardHistory.add(itemPos, item.copy(timestamp = System.currentTimeMillis()))
+        clipboardHistory.add(item.copy(timestamp = System.currentTimeMillis()))
 
         saveClipboard()
     }
@@ -901,6 +905,11 @@ val ClipboardHistoryAction = Action(
                 title = R.string.action_clipboard_manager_settings_show_quick_clips,
                 setting = ClipboardQuickClipsEnabled
             ),
+
+            userSettingToggleDataStore(
+                title = R.string.action_clipboard_manager_settings_show_suggestions,
+                setting = ClipboardSuggestionsEnabled
+            ).copy(visibilityCheck = { useDataStoreValue(ClipboardHistoryEnabled) }),
 
             userSettingToggleDataStore(
                 title = R.string.typing_settings_enable_clipboard_history,
