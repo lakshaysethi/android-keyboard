@@ -14,24 +14,27 @@ When you paste an item directly from the clipboard history UI, it is now "refres
 
 ---
 
-## 2. Clipboard Suggestions
+## 2. Clipboard Suggestions (Multi-Row)
 Copied text that matches your current typing search prefix will now appear as a suggestion in the keyboard's strip.
+
+### **Key Improvements:**
+-   **Exclusive Mode**: When a clipboard match is found, dictionary-based suggestions are hidden for better visibility.
+-   **Multi-Row Support**: Up to **6 suggestions** are now supported. If there are 4 or more matches, the suggestion strip automatically expands to **two rows** to fit them all.
 
 ### **How to test:**
 1.  **Enable the feature**: 
     -   Go to Keyboard Settings -> Clipboard.
     -   Ensure "Show clipboard items in suggestion bar" is **ON**.
-2.  Copy a unique word or phrase (e.g., "Antigravity").
-3.  Start typing the prefix (e.g., "Ant").
-4.  You should see "Antigravity" appear in the suggestion strip with a small **clipboard icon** next to it.
-5.  Click the suggestion to insert the full text.
+2.  Copy **at least 6** different unique words or phrases.
+3.  Start typing a prefix that matches them (e.g., if you copied "Apple", "Apply", "Apart", "Apt", "Area", "Away", type "A").
+4.  **Verification**: You should see the suggestion strip expand to **double height**, showing up to 6 matching clipboard items across two rows.
+5.  Click any suggestion to insert the full text.
 
 ---
 
 ## Technical Notes
--   **Limits**: Only the 3 most recent matching clipboard items are shown in the suggestion strip to avoid clutter.
--   **Filtering**: The prefix matching is case-insensitive.
--   **Deduplication**: If a clipboard match is already suggested by the standard dictionary, it won't be duplicated.
+-   **Layout**: The strip uses a grid-like layout when 4+ clipboard matches are present.
+-   **Filtering**: Prefix matching remains case-insensitive.
 -   **Build Status**: The APK was built successfully using Java 17 and Android SDK 34.
 
 Happy testing!

@@ -787,14 +787,13 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
             if (!typedWord.isNullOrBlank()) {
                 val matches = clipboardHistoryManager.clipboardHistory.filter {
                     it.text?.startsWith(typedWord, ignoreCase = true) == true && it.text != typedWord
-                }.reversed().take(3) // Limit to 3 most recent clipboard suggestions
+                }.reversed().take(6) // Limit to 6 most recent clipboard suggestions
 
                 if (matches.isNotEmpty()) {
                     val newSuggestions = ArrayList<SuggestedWordInfo>()
-                    // Copy existing suggestions
-                    for (i in 0 until suggestedWords.size()) {
-                        newSuggestions.add(suggestedWords.getInfo(i))
-                    }
+
+                    // Add the verbatim typed word if available
+                    suggestedWords.mTypedWordInfo?.let { newSuggestions.add(it) }
 
                     // Add clipboard matches
                     for (match in matches) {
@@ -817,10 +816,10 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
 
                     finalSuggestedWords = SuggestedWords(
                         newSuggestions,
-                        suggestedWords.mRawSuggestions,
+                        null,
                         suggestedWords.mTypedWordInfo,
                         suggestedWords.mTypedWordValid,
-                        suggestedWords.mWillAutoCorrect,
+                        false,
                         suggestedWords.mIsObsoleteSuggestions,
                         suggestedWords.mInputStyle,
                         suggestedWords.mSequenceNumber

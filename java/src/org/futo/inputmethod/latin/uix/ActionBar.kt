@@ -396,6 +396,23 @@ fun SuggestedWords.getInfoOrNull(idx: Int): SuggestedWordInfo? = try {
     null
 }
 
+fun SuggestedWords.isClipboardExclusive(): Boolean {
+    for (i in 0 until size()) {
+        if (getInfoOrNull(i)?.kind == SuggestedWordInfo.KIND_CLIPBOARD) return true
+    }
+    return false
+}
+
+fun SuggestedWords.hasManyClipboardSuggestions(): Boolean {
+    var count = 0
+    for (i in 0 until size()) {
+        if (getInfoOrNull(i)?.kind == SuggestedWordInfo.KIND_CLIPBOARD) {
+            count++
+        }
+    }
+    return count > 3
+}
+
 fun makeSuggestionLayout(words: SuggestedWords, blacklist: SuggestionBlacklist?): SuggestionLayout {
     val isGestureBatch = words.mInputStyle == SuggestedWords.INPUT_STYLE_UPDATE_BATCH
 
@@ -799,11 +816,13 @@ fun ActionBar(
 
     val oldActionBar = useDataStore(OldStyleActionsBar)
 
-    val useDoubleHeight = isActionsExpanded && oldActionBar.value == false
+    val hasManyClipboardSuggestions = words?.hasManyClipboardSuggestions() == true
+    val useDoubleHeight = (isActionsExpanded && oldActionBar.value == false) || hasManyClipboardSuggestions
+    val useTripleHeight = isActionsExpanded && oldActionBar.value == false && hasManyClipboardSuggestions
 
     Column(Modifier
         .height(
-            ActionBarHeight * (if (useDoubleHeight) 2 else 1).let {
+            ActionBarHeight * (if (useTripleHeight) 3 else if (useDoubleHeight) 2 else 1).let {
                 if(needToUseExpandableSuggestionUi) {
                     it - 1
                 } else {
@@ -836,55 +855,128 @@ fun ActionBar(
                 .fillMaxWidth()
                 .weight(1.0f), color = actionBarColor()
         ) {
-            Row(Modifier.safeKeyboardPadding()) {
-                ExpandActionsButton(isActionsExpanded) {
-                    toggleActionsExpanded()
-
-                    keyboardManagerForAction?.performHapticAndAudioFeedback(
-                        Constants.CODE_TAB,
-                        view
-                    )
+            if (hasManyClipboardSuggestions && words != null) {
+                val clipboardMatches = words.mSuggestedWordInfoList.filter { it.kind == SuggestedWords.SuggestedWordInfo.KIND_CLIPBOARD }
+                val verbatim = words.getInfoOrNull(SuggestedWords.INDEX_OF_TYPED_WORD)?.let {
+                    if (it.kind == SuggestedWords.SuggestedWordInfo.KIND_TYPED) it else null
                 }
 
-                if(oldActionBar.value && isActionsExpanded) {
-                    Box(modifier = Modifier
-                        .weight(1.0f)
-                        .fillMaxHeight()) {
-                        ActionItems(onActionActivated, onActionAltActivated)
-                    }
-                } else {
-                    if (importantNotice != null) {
-                        ImportantNoticeView(importantNotice)
-                    } else {
-                        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                            && inlineSuggestions.isNotEmpty()
-                        ) {
-                            InlineSuggestions(inlineSuggestions)
-                        } else if(quickClipState != null) {
-                            QuickClipView(quickClipState, onQuickClipDismiss)
-                        } else if (words != null) {
-                            SuggestionItems(
-                                words,
-                                onClick = {
-                                    suggestionStripListener.pickSuggestionManually(
-                                        words.getInfo(it)
-                                    )
-                                    keyboardManagerForAction?.performHapticAndAudioFeedback(
-                                        Constants.CODE_TAB,
-                                        view
-                                    )
-                                },
-                                onLongClick = {
-                                    suggestionStripListener.requestForgetWord(
-                                        words.getInfo(it)
-                                    )
-                                })
-                        } else {
-                            Spacer(modifier = Modifier.weight(1.0f))
+                val allPresentable = (listOf(verbatim) + clipboardMatches).filterNotNull()
+                val mid = (allPresentable.size + 1) / 2
+                val row1 = allPresentable.take(mid)
+                val row2 = allPresentable.drop(mid)
+
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(ActionBarHeight),
+                        verticalAlignment = CenterVertically
+                    ) {
+                        ExpandActionsButton(isActionsExpanded) {
+                            toggleActionsExpanded()
+                            keyboardManagerForAction?.performHapticAndAudioFeedback(
+                                Constants.CODE_TAB,
+                                view
+                            )
                         }
 
-                        if(inlineSuggestions.isEmpty()) {
-                            PinnedActionItems(onActionActivated, onActionAltActivated)
+                        row1.forEachIndexed { i, info ->
+                            val idx = words.indexOf(info)
+                            SuggestionItem(
+                                words,
+                                idx,
+                                isPrimary = idx == SuggestedWords.INDEX_OF_AUTO_CORRECTION,
+                                onClick = {
+                                    suggestionStripListener.pickSuggestionManually(words.getInfo(idx))
+                                    keyboardManagerForAction?.performHapticAndAudioFeedback(Constants.CODE_TAB, view)
+                                },
+                                onLongClick = {
+                                    suggestionStripListener.requestForgetWord(words.getInfo(idx))
+                                }
+                            )
+                            if (i < row1.size - 1) SuggestionSeparator()
+                        }
+                    }
+                    ActionSep()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(ActionBarHeight),
+                        verticalAlignment = CenterVertically
+                    ) {
+                        Spacer(Modifier.width(42.dp))
+                        row2.forEachIndexed { i, info ->
+                            val idx = words.indexOf(info)
+                            SuggestionItem(
+                                words,
+                                idx,
+                                isPrimary = idx == SuggestedWords.INDEX_OF_AUTO_CORRECTION,
+                                onClick = {
+                                    suggestionStripListener.pickSuggestionManually(words.getInfo(idx))
+                                    keyboardManagerForAction?.performHapticAndAudioFeedback(Constants.CODE_TAB, view)
+                                },
+                                onLongClick = {
+                                    suggestionStripListener.requestForgetWord(words.getInfo(idx))
+                                }
+                            )
+                            if (i < row2.size - 1) SuggestionSeparator()
+                        }
+                    }
+                }
+            } else {
+                Row(Modifier.safeKeyboardPadding()) {
+                    ExpandActionsButton(isActionsExpanded) {
+                        toggleActionsExpanded()
+
+                        keyboardManagerForAction?.performHapticAndAudioFeedback(
+                            Constants.CODE_TAB,
+                            view
+                        )
+                    }
+
+                    if (oldActionBar.value && isActionsExpanded) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1.0f)
+                                .fillMaxHeight()
+                        ) {
+                            ActionItems(onActionActivated, onActionAltActivated)
+                        }
+                    } else {
+                        if (importantNotice != null) {
+                            ImportantNoticeView(importantNotice)
+                        } else {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                                && inlineSuggestions.isNotEmpty()
+                            ) {
+                                InlineSuggestions(inlineSuggestions)
+                            } else if (quickClipState != null) {
+                                QuickClipView(quickClipState, onQuickClipDismiss)
+                            } else if (words != null) {
+                                SuggestionItems(
+                                    words,
+                                    onClick = {
+                                        suggestionStripListener.pickSuggestionManually(
+                                            words.getInfo(it)
+                                        )
+                                        keyboardManagerForAction?.performHapticAndAudioFeedback(
+                                            Constants.CODE_TAB,
+                                            view
+                                        )
+                                    },
+                                    onLongClick = {
+                                        suggestionStripListener.requestForgetWord(
+                                            words.getInfo(it)
+                                        )
+                                    })
+                            } else {
+                                Spacer(modifier = Modifier.weight(1.0f))
+                            }
+
+                            if (inlineSuggestions.isEmpty()) {
+                                PinnedActionItems(onActionActivated, onActionAltActivated)
+                            }
                         }
                     }
                 }
