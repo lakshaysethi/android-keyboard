@@ -60,7 +60,7 @@ data class WebSearchResultOptions(
 data class WebSearchResultItem(
     val path: String,
     val offset: Long,
-    val match_text: String,
+    val match_text: List<String>,
     val snippet: String
 )
 

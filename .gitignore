@@ -10,3 +10,7 @@ keystore.properties
 key.jks
 java/res/raw/mozc.data
 .cxx
+/jdk-17/
+/android-sdk/
+build_apk.sh
+github_token.txt
