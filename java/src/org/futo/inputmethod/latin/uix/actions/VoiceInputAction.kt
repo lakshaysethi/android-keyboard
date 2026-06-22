@@ -38,6 +38,8 @@ import org.futo.inputmethod.latin.uix.PersistentActionState
 import org.futo.inputmethod.latin.uix.ResourceHelper
 import org.futo.inputmethod.latin.uix.USE_PERSONAL_DICT
 import org.futo.inputmethod.latin.uix.USE_VAD_AUTOSTOP
+import org.futo.inputmethod.latin.uix.USE_NETWORK_VOICE_INPUT
+import org.futo.inputmethod.latin.uix.STT_SERVER_URL
 import org.futo.inputmethod.latin.uix.VERBOSE_PROGRESS
 import org.futo.inputmethod.latin.uix.getSetting
 import org.futo.inputmethod.latin.uix.setSetting
@@ -127,6 +129,8 @@ private class VoiceInputActionWindow(
         val canExpandSpace = context.getSetting(CAN_EXPAND_SPACE)
         val useVAD = context.getSetting(USE_VAD_AUTOSTOP)
         val usePersonalDict = context.getSetting(USE_PERSONAL_DICT)
+        val useNetwork = context.getSetting(USE_NETWORK_VOICE_INPUT)
+        val sttServerUrl = context.getSetting(STT_SERVER_URL) as String
 
         val primaryModel = model
         val languageSpecificModels = mutableMapOf<Language, ModelLoader>()
@@ -156,7 +160,9 @@ private class VoiceInputActionWindow(
                 requestAudioFocus = requestAudioFocus,
                 canExpandSpace = canExpandSpace,
                 useVADAutoStop = useVAD
-            )
+            ),
+            useNetworkRecognizer = useNetwork,
+            sttServerUrl = sttServerUrl
         )
     }
 
@@ -311,10 +317,18 @@ val VoiceInputAction = Action(icon = R.drawable.mic_fill,
     persistentState = { VoiceInputPersistentState(it) },
     windowImpl = { manager, persistentState ->
         val locales = manager.getActiveLocales()
+        val useNetwork = manager.getContext().getSetting(USE_NETWORK_VOICE_INPUT)
 
-        val model = ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), locales.firstOrNull() ?: Locale.ROOT)
+        val model = if (useNetwork) {
+            // Network mode doesn't need a local model - pass a dummy
+            ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), locales.firstOrNull() ?: Locale.ROOT)
+                ?: ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), Locale.ROOT)
+                ?: ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), Locale.ENGLISH)
+        } else {
+            ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), locales.firstOrNull() ?: Locale.ROOT)
+        }
 
-        if(model == null) {
+        if(model == null && !useNetwork) {
             VoiceInputNoModelWindow(locales.firstOrNull() ?: Locale.ROOT)
         } else {
             VoiceInputActionWindow(

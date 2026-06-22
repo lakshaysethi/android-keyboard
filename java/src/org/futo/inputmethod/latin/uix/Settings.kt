@@ -14,6 +14,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.lifecycle.LifecycleOwner
@@ -372,6 +373,16 @@ val THEME_KEY = SettingsKey(
 val USE_SYSTEM_VOICE_INPUT = SettingsKey(
     key = booleanPreferencesKey("useSystemVoiceInput"),
     default = false
+)
+
+val USE_NETWORK_VOICE_INPUT = SettingsKey(
+    key = booleanPreferencesKey("useNetworkVoiceInput"),
+    default = false
+)
+
+val STT_SERVER_URL = SettingsKey(
+    key = stringPreferencesKey("stt_server_url"),
+    default = "https://audio.lak.nz"
 )
 
 val USE_TRANSFORMER_FINETUNING = SettingsKey(

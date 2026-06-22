@@ -10,6 +10,7 @@ import org.futo.inputmethod.latin.uix.ENABLE_SOUND
 import org.futo.inputmethod.latin.uix.PREFER_BLUETOOTH
 import org.futo.inputmethod.latin.uix.USE_PERSONAL_DICT
 import org.futo.inputmethod.latin.uix.USE_SYSTEM_VOICE_INPUT
+import org.futo.inputmethod.latin.uix.USE_NETWORK_VOICE_INPUT
 import org.futo.inputmethod.latin.uix.USE_VAD_AUTOSTOP
 import org.futo.inputmethod.latin.uix.VERBOSE_PROGRESS
 import org.futo.inputmethod.latin.uix.settings.NavigationItemStyle
@@ -22,6 +23,11 @@ private val visibilityCheckNotSystemVoiceInput = @Composable {
     useDataStoreValue(USE_SYSTEM_VOICE_INPUT) == false
 }
 
+private val visibilityCheckNetworkVoiceInput = @Composable {
+    useDataStoreValue(USE_SYSTEM_VOICE_INPUT) == false &&
+    useDataStoreValue(USE_NETWORK_VOICE_INPUT) == true
+}
+
 val VoiceInputMenu = UserSettingsMenu(
     title = R.string.voice_input_settings_title,
     navPath = "voiceInput", registerNavPath = true,
@@ -31,6 +37,12 @@ val VoiceInputMenu = UserSettingsMenu(
             subtitle = R.string.voice_input_settings_disable_builtin_voice_input_subtitle,
             setting = USE_SYSTEM_VOICE_INPUT
         ),
+
+        userSettingToggleDataStore(
+            title = R.string.voice_input_settings_use_network_stt,
+            subtitle = R.string.voice_input_settings_use_network_stt_subtitle,
+            setting = USE_NETWORK_VOICE_INPUT
+        ).copy(visibilityCheck = visibilityCheckNotSystemVoiceInput),
 
         //if(!systemVoiceInput.value) {
         userSettingToggleDataStore(

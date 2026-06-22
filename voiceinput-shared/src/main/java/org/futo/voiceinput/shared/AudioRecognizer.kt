@@ -29,6 +29,11 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import org.futo.voiceinput.shared.ggml.InferenceCancelledException
 import org.futo.voiceinput.shared.ggml.InvalidModelException
 import org.futo.voiceinput.shared.types.AudioRecognizerListener
@@ -43,6 +48,12 @@ import org.futo.voiceinput.shared.whisper.ModelManager
 import org.futo.voiceinput.shared.whisper.MultiModelRunConfiguration
 import org.futo.voiceinput.shared.whisper.MultiModelRunner
 import org.futo.voiceinput.shared.whisper.isBlankResult
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.ShortBuffer
 import kotlin.math.min
@@ -87,7 +98,9 @@ data class RecordingSettings(
 data class AudioRecognizerSettings(
     val modelRunConfiguration: MultiModelRunConfiguration,
     val decodingConfiguration: DecodingConfiguration,
-    val recordingConfiguration: RecordingSettings
+    val recordingConfiguration: RecordingSettings,
+    val useNetworkTranscriber: Boolean = false,
+    val networkTranscriberUrl: String = ""
 )
 
 class ModelDoesNotExistException(val models: List<ModelLoader>) : Throwable()
@@ -103,6 +116,11 @@ class AudioRecognizer(
     private var recorder: AudioRecord? = null
 
     private val modelRunner = MultiModelRunner(modelManager)
+
+    private val useNetwork = settings.useNetworkTranscriber
+    private val networkUrl = settings.networkTranscriberUrl
+
+    private val httpClient = if (useNetwork) OkHttpClient() else null
 
     private val canExpandSpace = settings.recordingConfiguration.canExpandSpace
     private val useVAD = settings.recordingConfiguration.useVADAutoStop
@@ -194,6 +212,8 @@ class AudioRecognizer(
 
     @Throws(ModelDoesNotExistException::class)
     private fun verifyModelsExist() {
+        if (useNetwork) return
+
         val modelsThatDoNotExist = mutableListOf<ModelLoader>()
 
         if (!settings.modelRunConfiguration.primaryModel.exists(context)) {
@@ -293,6 +313,7 @@ class AudioRecognizer(
     }
 
     private suspend fun preloadModels() {
+        if (useNetwork) return
         modelRunner.preload(settings.modelRunConfiguration)
     }
 
@@ -541,6 +562,11 @@ class AudioRecognizer(
     }
 
     private suspend fun runModel() {
+        if (useNetwork) {
+            runNetworkTranscription()
+            return
+        }
+
         loadModelJob?.let {
             if (it.isActive) {
                 println("Model was not finished loading...")
@@ -575,6 +601,127 @@ class AudioRecognizer(
                 listener.finished(text)
             }
         }
+    }
+
+    private suspend fun runNetworkTranscription() {
+        val floatArray = floatSamples.array().sliceArray(0 until floatSamples.position())
+        if (floatArray.isEmpty()) {
+            lifecycleScope.launch {
+                withContext(Dispatchers.Main) {
+                    listener.finished("")
+                }
+            }
+            return
+        }
+
+        yield()
+
+        // Convert float samples to 16-bit PCM
+        val pcmShorts = ShortArray(floatArray.size)
+        for (i in floatArray.indices) {
+            val sample = (floatArray[i] * Short.MAX_VALUE).toInt()
+                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            pcmShorts[i] = sample.toShort()
+        }
+
+        // Write WAV bytes
+        val wavBytes = encodeToWav(pcmShorts)
+
+        // Write to temp file for upload
+        val tempFile = File.createTempFile("voice_input_", ".wav", context.cacheDir)
+        tempFile.writeBytes(wavBytes)
+
+        try {
+            val client = httpClient ?: return
+
+            val requestBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart(
+                    "file", tempFile.name,
+                    tempFile.asRequestBody("audio/wav".toMediaTypeOrNull())
+                )
+                .addFormDataPart("language", "en")
+                .build()
+
+            val request = Request.Builder()
+                .url("${networkUrl}/api/transcribe")
+                .post(requestBody)
+                .build()
+
+            val response = withContext(Dispatchers.IO) {
+                client.newCall(request).execute()
+            }
+
+            val text = if (response.isSuccessful) {
+                response.body?.string()?.let { body ->
+                    try {
+                        val json = org.json.JSONObject(body)
+                        json.optString("text", "").trim()
+                    } catch (e: Exception) {
+                        Log.e("NetworkAudioRecognizer", "Failed to parse response: $body", e)
+                        ""
+                    }
+                } ?: ""
+            } else {
+                Log.e("NetworkAudioRecognizer", "HTTP ${response.code}: ${response.message}")
+                ""
+            }
+
+            lifecycleScope.launch {
+                withContext(Dispatchers.Main) {
+                    yield()
+                    listener.finished(text)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("NetworkAudioRecognizer", "Network error", e)
+            lifecycleScope.launch {
+                withContext(Dispatchers.Main) {
+                    listener.finished("")
+                }
+            }
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    private fun encodeToWav(pcmShorts: ShortArray): ByteArray {
+        val sampleRate = 16000
+        val channels = 1
+        val bitsPerSample = 16
+        val byteRate = sampleRate * channels * bitsPerSample / 8
+        val blockAlign = channels * bitsPerSample / 8
+        val dataSize = pcmShorts.size * 2
+        val fileSize = 36 + dataSize
+
+        val buffer = ByteBuffer.allocate(44 + dataSize)
+        buffer.order(ByteOrder.LITTLE_ENDIAN)
+
+        // RIFF header
+        buffer.put("RIFF".toByteArray())
+        buffer.putInt(fileSize)
+        buffer.put("WAVE".toByteArray())
+
+        // fmt subchunk
+        buffer.put("fmt ".toByteArray())
+        buffer.putInt(16) // Subchunk1Size (PCM)
+        buffer.putShort(1) // AudioFormat (1 = PCM)
+        buffer.putShort(channels.toShort())
+        buffer.putInt(sampleRate)
+        buffer.putInt(byteRate)
+        buffer.putShort(blockAlign.toShort())
+        buffer.putShort(bitsPerSample.toShort())
+
+        // data subchunk
+        buffer.put("data".toByteArray())
+        buffer.putInt(dataSize)
+
+        // Write PCM samples
+        for (sample in pcmShorts) {
+            buffer.putShort(sample)
+        }
+
+        return buffer.array()
     }
 
     private fun onFinishRecording() {
