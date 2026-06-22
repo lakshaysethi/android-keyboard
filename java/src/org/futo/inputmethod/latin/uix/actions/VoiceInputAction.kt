@@ -320,7 +320,7 @@ val VoiceInputAction = Action(icon = R.drawable.mic_fill,
         val useNetwork = manager.getContext().getSetting(USE_NETWORK_VOICE_INPUT)
 
         val model = if (useNetwork) {
-            // Network mode doesn't need a local model - pass a dummy
+            // Network mode: find any model (not actually used for transcription, but required for window construction)
             ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), locales.firstOrNull() ?: Locale.ROOT)
                 ?: ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), Locale.ROOT)
                 ?: ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), Locale.ENGLISH)
@@ -328,13 +328,12 @@ val VoiceInputAction = Action(icon = R.drawable.mic_fill,
             ResourceHelper.tryFindingVoiceInputModelForLocale(manager.getContext(), locales.firstOrNull() ?: Locale.ROOT)
         }
 
-        if(model == null && !useNetwork) {
+        if(model == null) {
             VoiceInputNoModelWindow(locales.firstOrNull() ?: Locale.ROOT)
         } else {
             VoiceInputActionWindow(
                 manager = manager, state = persistentState as VoiceInputPersistentState,
                 locales = locales, model = model
-            )
         }
     }
 )
