@@ -334,6 +334,7 @@ val VoiceInputAction = Action(icon = R.drawable.mic_fill,
             VoiceInputActionWindow(
                 manager = manager, state = persistentState as VoiceInputPersistentState,
                 locales = locales, model = model
+            )
         }
     }
 )
